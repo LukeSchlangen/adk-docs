@@ -46,7 +46,7 @@ To proceed, confirm that your agent code is configured as follows:
 
     1. Agent code is in a file called `agent.ts` within your project directory.
     2. Your agent variable is named `rootAgent` and is exported.
-    3. `package.json` and `tsconfig.json` are present in your project directory.
+    3. `package.json` is present in your project directory.
 
 
 ## Environment variables
@@ -342,11 +342,10 @@ unless you specify it as deployment setting, such as the `--with_ui` option for
     your-project-directory/
     ├── agent.ts           # Your agent code (see "Agent sample" tab)
     ├── package.json       # Node.js dependencies
-    ├── tsconfig.json      # TypeScript configuration
     └── Dockerfile         # Container build instructions
     ```
 
-    Create the following files (`package.json`, `tsconfig.json`, `Dockerfile`) in the root of `your-project-directory/`.
+    Create the following files (`package.json`, `Dockerfile`) in the root of `your-project-directory/`.
 
     #### Code files
 
@@ -356,42 +355,22 @@ unless you specify it as deployment setting, such as the `--with_ui` option for
         {
           "name": "capital-agent",
           "version": "1.0.0",
-          "main": "dist/agent.js",
+          "main": "agent.ts",
           "scripts": {
-            "build": "tsc",
-            "start": "adk api_server dist/agent.js"
+            "start": "adk api_server agent.ts"
           },
           "dependencies": {
-            "@google/adk": "^0.2.0",
-            "@google/adk-devtools": "^0.2.0",
+            "@google/adk": "^0.3.0",
+            "@google/adk-devtools": "^0.3.0",
             "dotenv": "^16.4.5"
           },
           "devDependencies": {
-            "typescript": "^5.4.5",
             "@types/node": "^20.14.2"
           }
         }
         ```
 
-    2. Define the `tsconfig.json` file.
-
-        ```json title="tsconfig.json"
-        {
-          "compilerOptions": {
-            "target": "es2020",
-            "module": "nodenext",
-            "moduleResolution": "nodenext",
-            "outDir": "./dist",
-            "rootDir": "./",
-            "strict": true,
-            "esModuleInterop": true,
-            "skipLibCheck": true
-          },
-          "include": ["agent.ts"]
-        }
-        ```
-
-    3. Define the container image:
+    2. Define the container image:
 
         ```dockerfile title="Dockerfile"
         FROM node:20-slim
@@ -401,11 +380,10 @@ unless you specify it as deployment setting, such as the `--with_ui` option for
         RUN npm ci
 
         COPY . .
-        RUN npm run build
 
         # Cloud Run sets the PORT environment variable.
         # adk api_server uses port 8000 by default, so we need to override it.
-        CMD ["sh", "-c", "npx adk api_server dist/agent.js --port $PORT"]
+        CMD ["sh", "-c", "npx adk api_server agent.ts --port $PORT"]
         ```
 
     #### Deploy using `gcloud`
