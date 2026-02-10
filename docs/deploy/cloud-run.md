@@ -1,7 +1,7 @@
 # Deploy to Cloud Run
 
 <div class="language-support-tag">
-  <span class="lst-supported">Supported in ADK</span><span class="lst-python">Python</span><span class="lst-go">Go</span><span class="lst-java">Java</span>
+  <span class="lst-supported">Supported in ADK</span><span class="lst-python">Python</span><span class="lst-typescript">TypeScript</span><span class="lst-go">Go</span><span class="lst-java">Java</span>
 </div>
 
 [Cloud Run](https://cloud.google.com/run)
@@ -42,6 +42,12 @@ To proceed, confirm that your agent code is configured as follows:
 
     Refer to the following section for more details. You can also find a [sample app](https://github.com/google/adk-docs/tree/main/examples/java/cloud-run) in the Github repo.
 
+=== "TypeScript"
+
+    1. Agent code is in a file called `agent.ts` within your project directory.
+    2. Your agent variable is named `rootAgent` and is exported.
+    3. `package.json` and `tsconfig.json` are present in your project directory.
+
 
 ## Environment variables
 
@@ -64,6 +70,8 @@ export GOOGLE_GENAI_USE_VERTEXAI=FALSE
 export GOOGLE_API_KEY=your-api-key
 ```
 *(Replace `your-project-id` with your actual GCP project ID and `your-api-key` with your actual API key from AI Studio)*
+
+*Note: For TypeScript agents, use `GOOGLE_GENAI_API_KEY` instead of `GOOGLE_API_KEY`.*
 
 ## Prerequisites
 
@@ -292,6 +300,113 @@ unless you specify it as deployment setting, such as the `--with_ui` option for
     │   └── agent.py       # contains `root_agent` definition
     └── ...
     ```
+
+    #### Deploy using `gcloud`
+
+    Navigate to `your-project-directory` in your terminal.
+
+    ```bash
+    gcloud run deploy capital-agent-service \
+    --source . \
+    --region $GOOGLE_CLOUD_LOCATION \
+    --project $GOOGLE_CLOUD_PROJECT \
+    --allow-unauthenticated \
+    --set-env-vars="GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION=$GOOGLE_CLOUD_LOCATION,GOOGLE_GENAI_USE_VERTEXAI=$GOOGLE_GENAI_USE_VERTEXAI"
+    # Add any other necessary environment variables your agent might need
+    ```
+
+    * `capital-agent-service`: The name you want to give your Cloud Run service.
+    * `--source .`: Tells gcloud to build the container image from the Dockerfile in the current directory.
+    * `--region`: Specifies the deployment region.
+    * `--project`: Specifies the GCP project.
+    * `--allow-unauthenticated`: Allows public access to the service. Remove this flag for private services.
+    * `--set-env-vars`: Passes necessary environment variables to the running container. Ensure you include all variables required by ADK and your agent (like API keys if not using Application Default Credentials).
+
+    `gcloud` will build the Docker image, push it to Google Artifact Registry, and deploy it to Cloud Run. Upon completion, it will output the URL of your deployed service.
+
+    For a full list of deployment options, see the [`gcloud run deploy` reference documentation](https://cloud.google.com/sdk/gcloud/reference/run/deploy).
+
+=== "TypeScript - gcloud CLI"
+
+    ### gcloud CLI for TypeScript
+
+    You can deploy TypeScript Agents using the standard `gcloud run deploy` command and a `Dockerfile`.
+
+    Ensure you have authenticated with Google Cloud (`gcloud auth login` and `gcloud config set project <your-project-id>`).
+
+    #### Project Structure
+
+    Organize your project files as follows:
+
+    ```txt
+    your-project-directory/
+    ├── agent.ts           # Your agent code (see "Agent sample" tab)
+    ├── package.json       # Node.js dependencies
+    ├── tsconfig.json      # TypeScript configuration
+    └── Dockerfile         # Container build instructions
+    ```
+
+    Create the following files (`package.json`, `tsconfig.json`, `Dockerfile`) in the root of `your-project-directory/`.
+
+    #### Code files
+
+    1. Define the `package.json` file. Ensure you have `@google/adk` and `@google/adk-devtools` as dependencies.
+
+        ```json title="package.json"
+        {
+          "name": "capital-agent",
+          "version": "1.0.0",
+          "main": "dist/agent.js",
+          "scripts": {
+            "build": "tsc",
+            "start": "adk api_server dist/agent.js"
+          },
+          "dependencies": {
+            "@google/adk": "^0.2.0",
+            "@google/adk-devtools": "^0.2.0",
+            "dotenv": "^16.4.5"
+          },
+          "devDependencies": {
+            "typescript": "^5.4.5",
+            "@types/node": "^20.14.2"
+          }
+        }
+        ```
+
+    2. Define the `tsconfig.json` file.
+
+        ```json title="tsconfig.json"
+        {
+          "compilerOptions": {
+            "target": "es2020",
+            "module": "nodenext",
+            "moduleResolution": "nodenext",
+            "outDir": "./dist",
+            "rootDir": "./",
+            "strict": true,
+            "esModuleInterop": true,
+            "skipLibCheck": true
+          },
+          "include": ["agent.ts"]
+        }
+        ```
+
+    3. Define the container image:
+
+        ```dockerfile title="Dockerfile"
+        FROM node:20-slim
+        WORKDIR /app
+
+        COPY package*.json ./
+        RUN npm ci
+
+        COPY . .
+        RUN npm run build
+
+        # Cloud Run sets the PORT environment variable.
+        # adk api_server uses port 8000 by default, so we need to override it.
+        CMD ["sh", "-c", "npx adk api_server dist/agent.js --port $PORT"]
+        ```
 
     #### Deploy using `gcloud`
 
@@ -579,23 +694,45 @@ Once your agent is deployed to Cloud Run, you can interact with it via the deplo
 
     Send a prompt to your agent. Replace `capital_agent` with your app name and adjust the user/session IDs and prompt as needed.
 
-    ```bash
-    curl -X POST -H "Authorization: Bearer $TOKEN" \
-        $APP_URL/run_sse \
-        -H "Content-Type: application/json" \
-        -d '{
-        "app_name": "capital_agent",
-        "user_id": "user_123",
-        "session_id": "session_abc",
-        "new_message": {
-            "role": "user",
-            "parts": [{
-            "text": "What is the capital of Canada?"
-            }]
-        },
-        "streaming": false
-        }'
-    ```
+    === "Python/Go/Java"
+
+        ```bash
+        curl -X POST -H "Authorization: Bearer $TOKEN" \
+            $APP_URL/run_sse \
+            -H "Content-Type: application/json" \
+            -d '{
+            "app_name": "capital_agent",
+            "user_id": "user_123",
+            "session_id": "session_abc",
+            "new_message": {
+                "role": "user",
+                "parts": [{
+                "text": "What is the capital of Canada?"
+                }]
+            },
+            "streaming": false
+            }'
+        ```
+
+    === "TypeScript"
+
+        ```bash
+        curl -X POST -H "Authorization: Bearer $TOKEN" \
+            $APP_URL/run_sse \
+            -H "Content-Type: application/json" \
+            -d '{
+            "appName": "capital_agent",
+            "userId": "user_123",
+            "sessionId": "session_abc",
+            "newMessage": {
+                "role": "user",
+                "parts": [{
+                "text": "What is the capital of Canada?"
+                }]
+            },
+            "streaming": false
+            }'
+        ```
 
     * Set `"streaming": true` if you want to receive Server-Sent Events (SSE).
     * The response will contain the agent's execution events, including the final answer.
